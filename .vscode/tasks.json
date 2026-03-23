@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build and Run Selected ASM File",
+			"type": "shell",
+			"command": "cd \"${fileDirname}\" && clang -arch arm64 ${fileBasename} -o ARMPaint -lobjc -framework AppKit -framework CoreGraphics -framework Foundation && ./ARMPaint",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		}
+	]
+}
