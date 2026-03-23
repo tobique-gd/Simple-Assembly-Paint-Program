@@ -13,6 +13,9 @@ s_utf8:         .asciz "stringWithUTF8String:"
 t_quit:         .asciz "Quit"
 k_quit:         .asciz "q"
 
+s_characters:   .asciz "characters"
+s_charCodeAt:   .asciz "characterAtIndex:"
+
 
 // Application methods
 cls_NSApp:      .asciz "NSApplication"
@@ -65,9 +68,24 @@ zpWindowPosition: .double 0.0, 0.0
 zpViewPtr:        .quad 0
 zpDrawnColor:     .double 0.3, 0.5, 0.1, 1.0
 zpDrawnRect:      .double 0.0, 0.0, 100.0, 100.0
-zpWindowExtents:           .double 100.0, 100.0, 500.0, 500.0
+zpWindowExtents:           .double 100.0, 100.0, 320.0, 320.0
 
+zpGridArray: .skip 1024  
 
+zpGridSize:  .int 32
+zpCellPixelSize: .int 10
+
+zpCurrentTool: .int 0 // 0 = pen, 1 = eraser
+
+.p2align 3
+zpEventBlockLiteralKeyDown:
+    .quad __NSConcreteGlobalBlock
+    .int  0x10000000
+    .int  0
+    .quad zpBlockHandlerKeyDown
+    .quad zpBlockDescriptor
+
+.p2align 3
 zpEventBlockLiteral:
     .quad __NSConcreteGlobalBlock
     .int  0x10000000
@@ -75,9 +93,12 @@ zpEventBlockLiteral:
     .quad zpBlockHandler
     .quad zpBlockDescriptor
 
+.p2align 3
 zpBlockDescriptor:
     .quad 0
     .quad 32         
+    .quad 0          // copy helper (not used)
+    .quad 0          // dispose helper (not used)
 
 .text
 
@@ -85,101 +106,212 @@ zpBlockDescriptor:
 .globl zpCmdDrawRect
 
 .p2align 2
+set_pen:
+    mov w21, #0
+    b update_tool
+
+.p2align 2
+set_eraser:
+    mov w21, #1
+    b update_tool
+
+.p2align 2
+update_tool:
+    adrp x8, zpCurrentTool@PAGE
+    str  w21, [x8, zpCurrentTool@PAGEOFF]
+    b handler_exit   // return to OS after updating tool
+
+.p2align 2
+zpBlockHandlerKeyDown:
+    stp x29, x30, [sp, #-64]! 
+    mov x29, sp
+    stp x19, x20, [sp, #32] 
+    stp x21, x22, [sp, #48]
+
+    mov x19, x1    // x1 is the NSEvent object
+
+    // get the 'characters' NSString from the event
+    adrp x0, s_characters@PAGE
+    add  x0, x0, s_characters@PAGEOFF
+    bl _sel_registerName
+    mov x1, x0 
+    mov x0, x19 
+    bl _objc_msgSend   // Returns NSString* in x0
+    mov x20, x0        // Save NSString
+
+    
+    adrp x0, s_charCodeAt@PAGE
+    add  x0, x0, s_charCodeAt@PAGEOFF
+    bl _sel_registerName // call sel_registerName("characterAtIndex:"), result of first character is in x0
+    mov x1, x0
+    mov x0, x20        
+    mov x2, #0         
+    bl _objc_msgSend   // returns the character (unichar) in x0
+    
+    // 'b' is 98, 'e' is 101
+    cmp w0, #98  
+    b.eq set_pen
+    cmp w0, #101     
+    b.eq set_eraser
+    b handler_exit
+
+.p2align 2
+handler_exit:
+    mov x0, x19     
+    ldp x21, x22, [sp, #48]
+    ldp x19, x20, [sp, #32] 
+    ldp x29, x30, [sp], #64
+    ret
+
+.p2align 2
 zpCmdDrawRect:
-    stp x29, x30, [sp, #-48]!
+    stp x29, x30, [sp, #-64]!
     mov x29, sp
     stp x19, x20, [sp, #32]
+    stp x21, x22, [sp, #48]
+    stp x23, x24, [sp, #16]
 
-    // NSGraphicsContext currentContext
+    // setup graphics context
     adrp x0, cls_NSGraphicsContext@PAGE
     add  x0, x0, cls_NSGraphicsContext@PAGEOFF
-    bl _objc_getClass
-    mov x19, x0
+    bl _objc_getClass // call function with args (x0 = NSGraphicsContext class), result is in x0
+    mov x19, x0        // move NSGraphicsContext class into x19      
 
     adrp x0, s_currCtx@PAGE
     add  x0, x0, s_currCtx@PAGEOFF
-    bl _sel_registerName
-    mov x1, x0
-    mov x0, x19
-    bl _objc_msgSend
-    mov x19, x0
+    bl _sel_registerName // call sel_registerName("currentContext"), result is in x0
+    mov x1, x0             // move selector for currentContext into x1
+    mov x0, x19            // move NSGraphicsContext class into x0
+    bl _objc_msgSend       // call function with args (x0 = NSGraphicsContext class, x1 = currentContext selector), result is in x0
+    mov x19, x0            // move current graphics context instance into x19
 
-    // CREATE CGContext
     adrp x0, s_CGContext@PAGE
     add  x0, x0, s_CGContext@PAGEOFF
-    bl _sel_registerName
-    mov x1, x0
-    mov x0, x19
-    bl _objc_msgSend
-    mov x19, x0
+    bl _sel_registerName // call sel_registerName("CGContext"), result is in x0
+    mov x1, x0             // move selector for CGContext into x1
+    mov x0, x19             // move current graphics context instance into x0
+    bl _objc_msgSend       // call function with args (x0 = current graphics context instance, x1 = CGContext selector), result is in x0
+    mov x19, x0            // x19 = CGContextRef
 
-    // SET FILL COLOR
-    mov x0, x19 
+    mov x20, #0            // index counter
+
+draw_loop:
+    adrp x21, zpGridArray@PAGE
+    add  x21, x21, zpGridArray@PAGEOFF
+    ldrb w22, [x21, x20]   
+    
+    cbz  w22, next_iteration 
+
+    mov  w23, #32 // grid width in cells
+    udiv w24, w20, w23          // y
+    msub w25, w24, w23, w20     // x
+
+    mov x0, x19
     adrp x8, zpDrawnColor@PAGE 
     add  x8, x8, zpDrawnColor@PAGEOFF 
     ldp d0, d1, [x8] 
     ldp d2, d3, [x8, #16] 
     bl _CGContextSetRGBFillColor 
 
-    // LOAD MOUSE POSITION
-    adrp x8, zpWindowPosition@PAGE 
-    add  x8, x8, zpWindowPosition@PAGEOFF
-    ldr  d0, [x8]        
-    ldr  d1, [x8, #8]    
+    scvtf d0, w25               
+    scvtf d1, w24               
+    fmov  d4, #10.0
+    fmul  d0, d0, d4            
+    fmul  d1, d1, d4            
+    fmov  d2, #10.0             
+    fmov  d3, #10.0             
 
-    // LOAD SIZE ONLY from zpDrawnRect
-    adrp x9, zpDrawnRect@PAGE 
-    add  x9, x9, zpDrawnRect@PAGEOFF
-    ldr  d2, [x9, #16]   
-    ldr  d3, [x9, #24]   
-
-    mov  x0, x19         
+    mov  x0, x19                
     bl _CGContextFillRect
 
-    ldp x19, x20, [sp, #32] 
-    ldp x29, x30, [sp], #48 
+next_iteration:
+    add  x20, x20, #1
+    cmp  x20, #1024
+    b.ne draw_loop
+
+    ldp x23, x24, [sp, #16]
+    ldp x21, x22, [sp, #48]
+    ldp x19, x20, [sp, #32]
+    ldp x29, x30, [sp], #64
     ret
 
+.p2align 2
 zpBlockHandler:
-    stp x29, x30, [sp, #-64]! // allocate stack space for 2 registers and align to 16 bytes
-    mov x29, sp  // save frame pointer
-    stp x19, x20, [sp, #32] // save x19 and x20 for use in this function
+    stp x29, x30, [sp, #-64]! 
+    mov x29, sp
+    stp x19, x20, [sp, #32] 
 
-    mov x19, x1    // x1 is the event object passed by the block literal which we pass into x19 for use in the function
+    mov x19, x1    
 
-    // Load mouse location selector
-    adrp x0, zpEventsScreenMouseLocation@PAGE // load 4kb page address of "locationInWindow"
-    add  x0, x0, zpEventsScreenMouseLocation@PAGEOFF // add page offset to get actual address of string
-    bl _sel_registerName  // x0 now has the selector for "locationInWindow"
-    mov x1, x0 // x1 is the selector for "locationInWindow"
+    // get mouse location in window
+    adrp x0, zpEventsScreenMouseLocation@PAGE
+    add  x0, x0, zpEventsScreenMouseLocation@PAGEOFF
+    bl _sel_registerName
+    mov x1, x0 
+    mov x0, x19 
+    bl _objc_msgSend   
 
-    mov x0, x19 // load event object into x0 to call locationInWindow on it
-    bl _objc_msgSend   // call [event locationInWindow], result is in x0
+    
+    adrp x8, zpWindowPosition@PAGE
+    add  x8, x8, zpWindowPosition@PAGEOFF
+    str d0, [x8] // store mouse X in x8 address
+    str d1, [x8, #8]  // store mouse Y in x8+8 address
 
-    // store mouse location in global position variable for use in drawRect
-    adrp x8, zpWindowPosition@PAGE // load 4kb page address of zpWindowPosition
-    add  x8, x8, zpWindowPosition@PAGEOFF // add page offset to get actual address of zpWindowPosition
-    str d0, [x8] // store mouse x position in first double of zpWindowPosition
-    str d1, [x8, #8] // store mouse y position in second double of zpWindowPosition
+    bl zpDrawPixelAtMouse  // write values to grid array based on mouse location and current tool
 
-    // view redraw
-    adrp x0, s_setNeedsDisplay@PAGE // load 4kb page address of "setNeedsDisplay:"
-    add  x0, x0, s_setNeedsDisplay@PAGEOFF // add page offset to get actual address of string
-    bl _sel_registerName // x0 now has the selector for "setNeedsDisplay:"
-    mov x1, x0 // load selector for setNeedsDisplay: into x1
 
-    adrp x8, zpViewPtr@PAGE // load 4kb page address of zpViewPtr
-    add  x8, x8, zpViewPtr@PAGEOFF // add page offset to get actual address of zpViewPtr
-    ldr  x0, [x8]   // load register pair x0 with the pointer to our custom view instance
+    // Trigger redraw
+    adrp x0, s_setNeedsDisplay@PAGE
+    add  x0, x0, s_setNeedsDisplay@PAGEOFF
+    bl _sel_registerName
+    mov x1, x0 
 
-    mov x2, #1   // load x2 with boolean true for setNeedsDisplay:
-    bl _objc_msgSend // call [view setNeedsDisplay:true]
+    mov x20, x1
 
-    mov x0, x19  // load event object into x0 to return it from the block handler
-    ldp x19, x20, [sp, #32] // restore x19 and x20
-    ldp x29, x30, [sp], #64 // restore x29 and x30, and adjust stack pointer back
-    ret // return the event object as required by the block literal
+    adrp x8, zpViewPtr@PAGE
+    ldr  x0, [x8, zpViewPtr@PAGEOFF]
+    mov  x1, x20                    // move selector for setNeedsDisplay: into x1
+    mov  x2, #1                     // move boolean true into x2 for argument
+    bl _objc_msgSend
 
+    mov x0, x19  
+    ldp x19, x20, [sp, #32] 
+    ldp x29, x30, [sp], #64 
+    ret
+
+.p2align 2    
+zpDrawPixelAtMouse:
+    adrp   x8, zpWindowPosition@PAGE
+    add    x8, x8, zpWindowPosition@PAGEOFF
+    ldr    d0, [x8]        // load saved mouse X from x8 address into d0
+    ldr    d1, [x8, #8]    // load saved mouse Y from x8+8 address into d1
+
+    fcvtzs w2, d0          // w2 = (int)x
+    fcvtzs w3, d1          // w3 = (int)y
+
+    mov    w4, #10    // w4 = cell pixel size (10)
+    udiv   w2, w2, w4      // w2 = w2 / w4
+    udiv   w3, w3, w4      // w3 = w3 / w4
+
+    // calculate 1D Offset: index = (y * 32) + x
+    mov    w5, #32 // w5 = grid width in cells
+    madd   w6, w3, w5, w2  // w6 = (w3 * 32) + w2
+
+    adrp   x8, zpCurrentTool@PAGE
+    ldr    w9, [x8, zpCurrentTool@PAGEOFF]
+
+    
+    cmp    w9, #0 // compare current tool with 0 (pen)
+    mov    w8, #1 // pen value
+    mov    w10, #0   // eraser value
+    csel   w8, w8, w10, eq // if current tool is pen (w9 == 0), w8 = 1, else w8 = 0 for eraser
+
+    adrp   x7, zpGridArray@PAGE
+    add    x7, x7, zpGridArray@PAGEOFF
+    strb   w8, [x7, x6]     // write the value 1 or 0 into the grid array at the calculated index
+    ret
+
+.p2align 2
 _main:
     stp x29, x30, [sp, #-160]! // allocate stack space for 2 registers and 7 pairs of callee-saved registers, and align to 16 bytes
     mov x29, sp // save frame pointer
@@ -432,6 +564,17 @@ _main:
     adrp x3, zpEventBlockLiteral@PAGE
     add  x3, x3, zpEventBlockLiteral@PAGEOFF
     bl _objc_msgSend // Call function with args (x0 = NSEvent, x2 = #66), void
+// --- Key Down Monitor ---
+    adrp x0, s_addMon@PAGE
+    add  x0, x0, s_addMon@PAGEOFF
+    bl _sel_registerName
+    mov x1, x0           // Put the selector in x1
+
+    mov x0, x25          // NSEvent class in x0
+    mov x2, #0x400       // Mask (KeyDown) in x2
+    adrp x3, zpEventBlockLiteralKeyDown@PAGE
+    add  x3, x3, zpEventBlockLiteralKeyDown@PAGEOFF // Block in x3
+    bl _objc_msgSend
 
 
    // instantiate custom view and set as content view
