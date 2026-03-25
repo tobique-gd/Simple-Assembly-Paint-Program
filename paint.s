@@ -82,7 +82,62 @@ zpGridColorArray: .skip 32768 // 1024 pixels * 4 doubles per color (RGBA)
 zpGridSize:  .int 32 // number of cells in grid width and height
 zpCellPixelSize: .int 10 // number of pixels per grid cell (10x10 pixel cells)
 
-helloStr: .asciz "Hello"
+// predefined colors
+.align 3
+
+color1:
+    .double 0.0,   0.0,   0.0,   1.0
+
+color2:
+    .double 0.114, 0.169, 0.325, 1.0
+
+color3:
+    .double 0.494, 0.145, 0.325, 1.0
+
+color4:
+    .double 0.0,   0.529, 0.318, 1.0
+
+color5:
+    .double 0.671, 0.322, 0.212, 1.0
+
+color6:
+    .double 0.373, 0.341, 0.310, 1.0
+
+color7:
+    .double 0.761, 0.765, 0.780, 1.0
+
+color8:
+    .double 1.0,   0.945, 0.910, 1.0
+
+color9:
+    .double 1.0,   0.0,   0.302, 1.0
+
+color10:
+    .double 1.0,   0.639, 0.0,   1.0
+
+color11:
+    .double 1.0,   0.925, 0.153, 1.0
+
+color12:
+    .double 0.0,   0.894, 0.212, 1.0
+
+zpColorPalette: 
+    .double 0.0,   0.0,   0.0,   1.0   // color 1
+    .double 0.114, 0.169, 0.325, 1.0   // color 2
+    .double 0.494, 0.145, 0.325, 1.0   // color 3
+    .double 0.0,   0.529, 0.318, 1.0   // color 4
+    .double 0.671, 0.322, 0.212, 1.0   // color 5
+    .double 0.373, 0.341, 0.310, 1.0   // color 6
+    .double 0.761, 0.765, 0.780, 1.0   // color 7
+    .double 1.0,   0.945, 0.910, 1.0   // color 8
+    .double 1.0,   0.0,   0.302, 1.0   // color 9
+    .double 1.0,   0.639, 0.0,   1.0   // color 10
+    .double 1.0,   0.925, 0.153, 1.0   // color 11
+    .double 0.0,   0.894, 0.212, 1.0    // color 12
+
+
+helloStr: .asciz "ZPaint in ARM64 Assembly"
+
 
 
 // Function pointers for event handlers
@@ -94,11 +149,11 @@ zpEventBlockLiteralKeyDown:
     .quad zpBlockHandlerKeyDown
     .quad zpBlockDescriptor
 
-zpEventBlockLiteral:
+zpEventBlockLiteralDrag:
     .quad __NSConcreteGlobalBlock
     .int  0x10000000
     .int  0
-    .quad zpBlockHandler
+    .quad zpBlockHandlerDrag
     .quad zpBlockDescriptor
 
 zpBlockDescriptor:
@@ -163,48 +218,137 @@ zpBlockHandlerKeyDown:
     cmp w0, #101     // #101 is ASCII e
     b.eq set_eraser
     cmp w0, #118  // #118 is ASCII v
-    b.eq zpCmdSetColorRed
+    b.eq zpColor1
     cmp w0, #99  // #99 is ASCII c
-    b.eq zpCmdSetColorBlue
+    b.eq zpColor2
+    cmp w0, #114  // #114 is ASCII r
+    b.eq zpColor6
+    cmp w0, #103  // #103 is ASCII g
+    b.eq zpColor7
     cmp w0, #120  // #120 is ASCII x
-    b.eq zpCmdSetColorGreen
+    b.eq zpColor3
+    cmp w0, #121  // #121 is ASCII y
+    b.eq zpColor4
+    cmp w0, #122  // #122 is ASCII z
+    b.eq zpColor5
+    cmp w0, #49  // #49 is ASCII 1
+    b.eq zpColor8
+    cmp w0, #50  // #50 is ASCII 2
+    b.eq zpColor9
+    cmp w0, #51  // #51 is ASCII 3
+    b.eq zpColor10
+    cmp w0, #52  // #52 is ASCII 4
+    b.eq zpColor11
+    cmp w0, #53  // #53 is ASCII 5
+    b.eq zpColor12
+
+    bl zpCmdSetColor
 
     b handler_exit
 
+//rgba(0.000, 0.000, 0.000, 1.0)
+//rgba(0.114, 0.169, 0.325, 1.0)
+//rgba(0.494, 0.145, 0.325, 1.0)
+//rgba(0.000, 0.529, 0.318, 1.0)
+//rgba(0.671, 0.322, 0.212, 1.0)
+//rgba(0.373, 0.341, 0.310, 1.0)
+//rgba(0.761, 0.765, 0.780, 1.0)
+//rgba(1.000, 0.945, 0.910, 1.0)
+//rgba(1.000, 0.000, 0.302, 1.0)
+//rgba(1.000, 0.639, 0.000, 1.0)
+//rgba(1.000, 0.925, 0.153, 1.0)
+//rgba(0.000, 0.894, 0.212, 1.0)
+//rgba(0.161, 0.678, 1.000, 1.0)
+//rgba(0.514, 0.463, 0.612, 1.0)
+//rgba(1.000, 0.467, 0.659, 1.0)
+//rgba(1.000, 0.800, 0.667, 1.0)
 
-// color setters
-zpCmdSetColorRed:
-    fmov d0, #1.0               // red
-    fmov d1, #0.0               // green
-    fmov d2, #0.0               // blue
-    fmov d3, #1.0               // alpha
+zpColor1:
+    adrp x0, color1@PAGE
+    add  x0, x0, color1@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
-    adrp x8, zpCurrentColor@PAGE
-    add  x8, x8, zpCurrentColor@PAGEOFF
-    stp d0, d1, [x8]
-    stp d2, d3, [x8, #16]
+zpColor2:
+    adrp x0, color2@PAGE
+    add  x0, x0, color2@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
-    b handler_exit
+zpColor3:
+    adrp x0, color3@PAGE
+    add  x0, x0, color3@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
-zpCmdSetColorBlue:
-    fmov d0, #0.0               // red
-    fmov d1, #0.0               // green
-    fmov d2, #1.0               // blue
-    fmov d3, #1.0               // alpha
+zpColor4:
+    adrp x0, color4@PAGE
+    add  x0, x0, color4@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
-    adrp x8, zpCurrentColor@PAGE
-    add  x8, x8, zpCurrentColor@PAGEOFF
-    stp d0, d1, [x8]
-    stp d2, d3, [x8, #16]
+zpColor5:
+    adrp x0, color5@PAGE
+    add  x0, x0, color5@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
-    b handler_exit
+zpColor6:
+    adrp x0, color6@PAGE
+    add  x0, x0, color6@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
-zpCmdSetColorGreen:
-    fmov d0, #0.0               // red
-    fmov d1, #1.0               // green
-    fmov d2, #0.0               // blue
-    fmov d3, #1.0               // alpha
+zpColor7:
+    adrp x0, color7@PAGE
+    add  x0, x0, color7@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
 
+zpColor8:
+    adrp x0, color8@PAGE
+    add  x0, x0, color8@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
+
+zpColor9:
+    adrp x0, color9@PAGE
+    add  x0, x0, color9@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
+
+zpColor10:
+    adrp x0, color10@PAGE
+    add  x0, x0, color10@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
+
+zpColor11:
+    adrp x0, color11@PAGE
+    add  x0, x0, color11@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
+
+zpColor12:
+    adrp x0, color12@PAGE
+    add  x0, x0, color12@PAGEOFF
+    ldp d0, d1, [x0]
+    ldp d2, d3, [x0, #16]
+    ret
+
+// call to set color into zpCurrentColor, by suppliyng RGBA values in d0, d1, d2, d3
+zpCmdSetColor:
     adrp x8, zpCurrentColor@PAGE
     add  x8, x8, zpCurrentColor@PAGEOFF
     stp d0, d1, [x8]
@@ -265,7 +409,7 @@ zpDrawText:
 
 
 
-zpBlockHandler:
+zpBlockHandlerDrag:
     stp x29, x30, [sp, #-64]! 
     mov x29, sp
     stp x19, x20, [sp, #32] 
@@ -370,7 +514,7 @@ handler_exit:
 
 // Rendering function for drawing rectangles
 zpCmdDrawRect:
-    // save state in 80 bytes, 16 byte aligned
+    // Save state: 80 bytes, 16-byte aligned
     stp x29, x30, [sp, #-80]!
     mov x29, sp
     stp x19, x20, [sp, #16]
@@ -378,110 +522,182 @@ zpCmdDrawRect:
     stp x23, x24, [sp, #48]
     stp x25, x26, [sp, #64]
 
-    mov x24, x0      // move view into x0
+    mov x24, x0             // save selector for view in x24
+    bl zpGetWindowFrame  // get window frame and store in global variable for use in centering grid and text
 
-    // get frame to calculate offset for centering the grid
-    adrp x0, s_frame@PAGE
-    add  x0, x0, s_frame@PAGEOFF
-    bl _sel_registerName // call sel_registerName("frame"), result is in x0
-    mov x1, x0  // move selector for frame into x1
-    mov x0, x24  // move view into x0
-    bl _objc_msgSend          // call function with args (x0 = view, x1 = frame selector), returns CGRect in d0, d1, d2, d3
+    adrp x8, zpWindowExtents@PAGE
+    add  x8, x8, zpWindowExtents@PAGEOFF
+    ldp  d10, d11, [x8]        // d10 = origin.x, d11 = origin.y
+    ldp  d12, d13, [x8, #16]   // d12 = width, d13 = height
 
-    fmov d4, #2.0 // move 2.0 into d4 for division
-    fdiv d2, d2, d4       // float divide width by 2 to get center point
-    fcvtzs x26, d2         // convert center point to integer (truncating towards zero)
-    sub  x26, x26, #160    // subtract 160 from center point
+    // Calculate horizontal center for the 320px grid (32 cells * 10px)
+    fmov d4, #2.0
+    fdiv d2, d12, d4           // d2 = View Width / 2
+    fcvtzs x26, d2             // Convert to integer
+    sub  x26, x26, #160        // x26 = start pixel X for the grid
 
-    // get cgcontext
+    
+    // calculate offset for text
+    fmov d0, #31.0                // x = center of screen
+    fmov d4, #30.0
+    fsub d1, d13, d4           // y = Height - 30px (top margin)
+    bl zpDrawText // call label to draw text
+
+    // setup graphics context
     adrp x0, cls_NSGraphicsContext@PAGE
     add  x0, x0, cls_NSGraphicsContext@PAGEOFF
     bl _objc_getClass // call function with args (x0 = NSGraphicsContext string), result is in x0
-    mov x19, x0 // move GraphicsContext class into x19
+    mov x19, x0 // move NSGraphicsContext class into x19
 
     adrp x0, s_currCtx@PAGE
     add  x0, x0, s_currCtx@PAGEOFF
     bl _sel_registerName // call sel_registerName("currentContext"), result is in x0
     mov x1, x0 // move selector for currentContext into x1
-    mov x0, x19 // move GraphicsContext into x0
-    bl _objc_msgSend           // call function with args (x0 = currentContext, x1 = GraphicsContext), result "NSGraphicsContext.currentContext" in x0
-    mov x19, x0 // move the NSGraphicsContext.currentContext into x19
+    mov x0, x19  // move NSGraphicsContext class into x0
+    bl _objc_msgSend        // call function with args (x0 = NSGraphicsContext class, x1 = currentContext selector), result is in x0
+    mov x19, x0                // x19 = NSGraphicsContext.currentContext
 
     adrp x0, s_CGContext@PAGE
     add  x0, x0, s_CGContext@PAGEOFF
-    bl _sel_registerName // call sel_registerName("CGContext"), result in x0
-    mov x1, x0 // move CGContext into x1
-    mov x0, x19 // move the NSGraphicsContext.currentContext into x0
-    bl _objc_msgSend       // call function with args (x0 = NSGraphicsContext.currentContext, x1 = CGContext), result "ContextHandle" in x0
-    mov x19, x0     // move the contextHandle into x19
+    bl _sel_registerName // call sel_registerName("CGContext"), result is in x0
+    mov x1, x0 // move selector for CGContext into x1
+    mov x0, x19 // move currentContext into x0
+    bl _objc_msgSend       // call function with args (x0 = currentContext, x1 = CGContext selector), result is in x0
+    mov x19, x0                // x19 = CGContextRef
 
-    mov x20, #0                // Index counter (0-1023)
+    mov x20, #0                // Index counter (0 to 1023)
 
-    // d0 and d1 are used as x, y in drawText
-    mov w0, #50
-    scvtf d0, w0
-
-    mov w1, #50
-    scvtf d1, w1
-
-    bl zpDrawText
-
-
-// Drawing loop which goes through the grid array and draws rectangles where there are 1s, skipping where there are 0s
-draw_loop:
-    adrp x21, zpGridArray@PAGE // call 4kb page offset into x21
-    add  x21, x21, zpGridArray@PAGEOFF // add the value offset into x21
-    ldrb w22, [x21, x20]   // unsigned load registers
     
-    cbz  w22, next_iteration // conditional branch call to next_iteration if w22 is 0
 
-    // Convert 1D index to 2D
+draw_loop:
+    adrp x21, zpGridArray@PAGE 
+    add  x21, x21, zpGridArray@PAGEOFF 
+    ldrb w22, [x21, x20]       // Load byte (1 = painted, 0 = empty)
+    
+    cbz  w22, next_iteration   // If 0, skip drawing this cell
+
+    // Convert 1D index to 2D coordinates
     mov  w23, #32 
-    udiv w24, w20, w23          // w24 = y
-    msub w25, w24, w23, w20     // w25 = x
+    udiv w24, w20, w23          // w24 = y (row)
+    msub w25, w24, w23, w20     // w25 = x (column)
   
-    // Set Fill Color
-    lsl  x9, x20, #5
+    // set fill color for this cell from color array
+    lsl  x9, x20, #5           // index * 32 (size of 4 doubles)
     adrp x8, zpGridColorArray@PAGE 
     add  x8, x8, zpGridColorArray@PAGEOFF
     add  x8, x8, x9
 
-    mov  x0, x19                // context FIRST
+    mov  x0, x19               // Argument 0: CGContext
+    ldp  d0, d1, [x8]          // R, G
+    ldp  d2, d3, [x8, #16]     // B, A
+    bl   _CGContextSetRGBFillColor // call function with args (x0 = CGContext, d0 = R, d1 = G, d2 = B, d3 = A), void
 
-    ldp  d0, d1, [x8]           // R, G
-    ldp  d2, d3, [x8, #16]      // B, A
+    // Define the 10x10 Rectangle
+    scvtf d0, w25              // grid x = (int) x
+    scvtf d1, w24              // grid y = (int) y
+    fmov  d4, #10.0         // move floating point value 10.0into d4
+    fmul  d0, d0, d4           // convert grid x to pixel x
+    fmul  d1, d1, d4           // convert grid y to pixel y
 
-    bl   _CGContextSetRGBFillColor
+    scvtf d5, x26              // load center offset
+    fadd  d0, d0, d5           // apply offset to d0
 
-    // Draw the 10x10 rect
-    scvtf d0, w25               // Grid X (0 to 31)
-    scvtf d1, w24               // Grid Y (0 to 31)
-    fmov  d4, #10.0
-    fmul  d0, d0, d4            // Pixel X (without offset)
-    fmul  d1, d1, d4            // Pixel Y
+    fmov  d2, #10.0            // pixel width = 10.0
+    fmov  d3, #10.0            // pixel height = 10.0
 
-    scvtf d5, x26               // Convert pixel offset (integer) to double
-    fadd  d0, d0, d5            // Add pixel offset to final X pixel coordinate
+    mov  x0, x19               // move CGContext into x0 for argument
+    bl _CGContextFillRect      // call to function with args (x0 = CGContext, d0 = x, d1 = y, d2 = width, d3 = height), void
 
-    fmov  d2, #10.0          // float move 10 into d2   
-    fmov  d3, #10.0          // float move 10 into d3
-
-    mov  x0, x19             // move contextHandle into x0
-    bl _CGContextFillRect   // call function with args (x0 = cintexthandle, CGRect (d0, d1, d2, d3))
-
-// Increment index and loop
+ 
+   
 next_iteration:
-    add  x20, x20, #1 // add 1 into x20
-    cmp  x20, #1024 // if x20 is less than 1024
-    b.ne draw_loop // call to draw loop
+    add  x20, x20, #1 // add 1 to x20
+    cmp  x20, #1024  // compare x20 with 1024 (total number of cells)
+    b.ne draw_loop  // check if x20 is not equal to 1024, if not, branch back to start of loop
 
-    // restore registers
+    mov x0, x19        // CGContext
+
+zpLoopDrawColorPalette:
+    // x0 = CGContext*
+    cbz x19, zpPaletteDone
+    // --- DRAW COLOR PALETTE (Right-Hand Side) ---
+    
+    // 1. Get Window Dimensions ONCE before starting the loop
+    adrp x7, zpWindowExtents@PAGE
+    add  x7, x7, zpWindowExtents@PAGEOFF
+    ldp  d12, d13, [x7, #16]   // d12 = width, d13 = height
+
+    fcvtzs x27, d12            // x27 = Total Window Width (Stable)
+    fcvtzs x28, d13            // x28 = Total Window Height (Stable)
+
+    mov x20, #0                // Reset counter (i = 0 to 11)
+
+zpPaletteLoop:
+    cmp x20, #12
+    b.ge zpPaletteDone         
+
+    // 2. Layout Logic (Rows/Cols)
+    mov x9, #2
+    udiv x21, x20, x9          // x21 = row
+    msub x22, x21, x9, x20     // x22 = col
+
+    // 3. Compute Positions into CALLEE-SAVED registers (x25, x26)
+    // These will survive the 'bl' call to SetRGBFillColor
+    sub x10, x27, #100         // Base X
+    lsr x11, x28, #1           
+    sub x11, x11, #200         // Base Y center (adjusted from 500 to fit screen)
+
+    mov x12, #40             // Spacing
+    
+    mul x14, x22, x12
+    add x25, x10, x14          // Final X -> stored in x25 (Stable)
+    
+    mul x15, x21, x12          
+    add x26, x11, x15          // Final Y -> stored in x26 (Stable)
+
+    // 4. Load RGBA
+    adrp x8, zpColorPalette@PAGE
+    add  x8, x8, zpColorPalette@PAGEOFF
+    lsl  x9, x20, #5           
+    add  x8, x8, x9
+    ldp  d0, d1, [x8]          
+    ldp  d2, d3, [x8, #16]     
+
+    // 5. Set Fill Color
+    mov  x0, x19               
+    bl   _CGContextSetRGBFillColor // x2, x3 etc. are likely destroyed here
+
+    // 6. Draw Rect
+    // We move our STABLE coordinates from x25/x26 into the float registers
+    scvtf d0, x25               
+    scvtf d1, x26               
+    fmov  d2, #31.0            
+    fmov  d3, #31.0            
+    mov   x0, x19
+    bl    _CGContextFillRect
+
+    // 7. Increment and Loop
+    add x20, x20, #1
+    b zpPaletteLoop
+
+// =====================================================
+// DONE
+// =====================================================
+// =====================================================
+// DONE
+// =====================================================
+zpPaletteDone:
+    // Restore state: 80 bytes, reverse order of the prologue
     ldp x25, x26, [sp, #64]
     ldp x23, x24, [sp, #48]
     ldp x21, x22, [sp, #32]
     ldp x19, x20, [sp, #16]
+    
+    // Restore Frame Pointer, Link Register, and deallocate stack space
     ldp x29, x30, [sp], #80
-    ret // return
+    
+    ret
+
 
 // Draw pixel at mouse position
 zpDrawPixelAtMouse:
@@ -557,36 +773,34 @@ zpDrawPixelAtMouse:
     ret
 
 // load frame size into zpWindowExtents global variable for use in event handler and rendering function
+// Corrected: Now accepts a View pointer in x0
+// Corrected: Updates zpWindowExtents using the View pointer
 zpGetWindowFrame:
-    stp x29, x30, [sp, #-48]! // save FP, LR, and an extra slot for x19
+    stp x29, x30, [sp, #-32]!
     mov x29, sp
-    str x19, [sp, #16]        // save x19 to the stack
+    str x19, [sp, #16]       // Save x19 to preserve our View pointer
 
-    // get contentView from window
-    adrp x0, s_contentView@PAGE
-    add  x0, x0, s_contentView@PAGEOFF
-    bl _sel_registerName
-    mov x1, x0
-    mov x0, x24 
-    bl _objc_msgSend        // Returns NSView* in x0
-    
-    // get frame from contentView
-    mov x19, x0             // Use x19 as a scratchpad (now safe)
+    mov x19, x0             // Save the View pointer (passed in x0) to x19
+
+    // 1. Get the selector for "frame"
     adrp x0, s_frame@PAGE
     add  x0, x0, s_frame@PAGEOFF
-    bl _sel_registerName
-    mov x1, x0
-    mov x0, x19
-    bl _objc_msgSend        // returns CGRect in d0, d1, d2, d3
+    bl _sel_registerName    // Returns selector in x0
+    
+    // 2. Prepare for msgSend
+    mov x1, x0              // x1 = selector ("frame")
+    mov x0, x19             // x0 = the View pointer
+    
+    bl _objc_msgSend        // Returns CGRect in d0, d1, d2, d3
 
-    // update to global variable for window extents (origin x, origin y, width, height)
+    // 3. Store result in global variables
     adrp x8, zpWindowExtents@PAGE
     add  x8, x8, zpWindowExtents@PAGEOFF
-    stp  d0, d1, [x8]        // store x, y
-    stp  d2, d3, [x8, #16]    // store width, height
+    stp  d0, d1, [x8]        // Store origin.x, origin.y
+    stp  d2, d3, [x8, #16]    // Store width, height
 
-    ldr x19, [sp, #16]       // Restore the original x19 (NSApp)
-    ldp x29, x30, [sp], #48
+    ldr x19, [sp, #16]       // Restore x19
+    ldp x29, x30, [sp], #32
     ret
 
 // main function loop for setting up NSApplication, NSWindow, NSView, NSMenu and event handlers
@@ -602,6 +816,7 @@ _main:
     stp x27, x28, [sp, #80]
 
     // init app
+
     adrp x0, cls_NSApp@PAGE // load 4kb page address of "NSApplication"
     add  x0, x0, cls_NSApp@PAGEOFF // add page offset to get actual address of string
     bl _objc_getClass // call function with args (x0 = NSApplication string), result is in x0
@@ -771,11 +986,13 @@ _main:
     adrp x3, zpDrawRectSignature@PAGE
     add  x3, x3, zpDrawRectSignature@PAGEOFF    
 
+
     mov x0, x28           // load pointer to ZPBasicView class into x0
     bl _class_addMethod // call function with args (x0 = ZPBasicView class, x1 = drawRect: selector, x2 = pointer to zpCmdDrawRect function, x3 = pointer to "v@:{CGRect={CGPoint=dd}{CGSize=dd}}" string), result is boolean success/failure which we ignore
 
     mov x0, x28
     bl _objc_registerClassPair // call function with args (x0 = ZPBasicView class), void
+
 
     // window setup
     adrp x0, cls_NSWindow@PAGE
@@ -827,8 +1044,6 @@ _main:
     bl _objc_msgSend // call function with args (x0 = initialized NSWindow instance, x1 = makeKeyAndOrderFront: selector, x2 = false for sender), void
 
 
-    bl zpGetWindowFrame
-
 
 
     // NSEvent monitor
@@ -844,8 +1059,8 @@ _main:
 
     mov x0, x25 // move NSEvent class into x0
     mov x2, #66    // Mask for mouse dragging in x2
-    adrp x3, zpEventBlockLiteral@PAGE
-    add  x3, x3, zpEventBlockLiteral@PAGEOFF
+    adrp x3, zpEventBlockLiteralDrag@PAGE
+    add  x3, x3, zpEventBlockLiteralDrag@PAGEOFF
     bl _objc_msgSend // Call function with args (x0 = NSEvent, x2 = #66), void
 
     // keydown monitor
