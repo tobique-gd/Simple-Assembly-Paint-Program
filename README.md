@@ -28,5 +28,5 @@ Consist of two tools:
 - clang
 
 1. Clone the repository
-2. In the repository directory run: clang -arch arm64 <path (can be just ./ZPaint)> -o ZPaint -lobjc -framework AppKit -framework CoreGraphics -framework Foundation
+2. In the repository directory run: clang -arch arm64 -framework AppKit -o <executable file name> paint.s
 3. Run ./ZPaint
