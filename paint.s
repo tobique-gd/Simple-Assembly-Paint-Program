@@ -680,12 +680,6 @@ zpPaletteLoop:
     add x20, x20, #1
     b zpPaletteLoop
 
-// =====================================================
-// DONE
-// =====================================================
-// =====================================================
-// DONE
-// =====================================================
 zpPaletteDone:
     // Restore state: 80 bytes, reverse order of the prologue
     ldp x25, x26, [sp, #64]
@@ -773,8 +767,6 @@ zpDrawPixelAtMouse:
     ret
 
 // load frame size into zpWindowExtents global variable for use in event handler and rendering function
-// Corrected: Now accepts a View pointer in x0
-// Corrected: Updates zpWindowExtents using the View pointer
 zpGetWindowFrame:
     stp x29, x30, [sp, #-32]!
     mov x29, sp
